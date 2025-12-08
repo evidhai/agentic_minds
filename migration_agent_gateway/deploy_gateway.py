@@ -46,8 +46,9 @@ def main():
     
     # 5. Setup Cognito Auth
     print("\n🔐 Setting up Cognito Authentication...")
+    # EDIT 'pool_name' here to create a separate User Pool for a new app instance (e.g., "MigrationAgentPool-Dev")
     auth_config = utils.setup_cognito_full(
-        pool_name="MigrationAgentPool",
+        pool_name="MigrationAgentPool", 
         client_name="GateClient",
         resource_id="https://migration-gateway",
         region=REGION

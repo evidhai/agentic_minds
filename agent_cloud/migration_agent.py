@@ -51,20 +51,65 @@ GATEWAY_URL = os.getenv("GATEWAY_URL")
 import gateway_infra_utils as utils
 
 def get_dynamic_token():
-    """Reads credentials from gateway_auth.json and fetches fresh token"""
+    """
+    Dynamically retrieves credentials by looking up the User Pool by Name.
+    Use 'APP_POOL_NAME' env var to override the target pool name.
+    """
+    pool_name = os.getenv("APP_POOL_NAME", "MigrationAgentPool")
+    client_name = "GateClient" # Default client name created by deploy script
+    region = os.getenv("AWS_DEFAULT_REGION", "us-east-1")
+    
     try:
-        with open("gateway_auth.json", "r") as f:
-            auth_config = json.load(f)
+        cognito = boto3.client("cognito-idp", region_name=region)
+        
+        # 1. Find User Pool ID
+        pool_id = None
+        paginator = cognito.get_paginator('list_user_pools')
+        for page in paginator.paginate(MaxResults=50):
+            for pool in page['UserPools']:
+                if pool['Name'] == pool_name:
+                    pool_id = pool['Id']
+                    break
+            if pool_id: break
             
+        if not pool_id:
+            logger.error(f"User Pool '{pool_name}' not found.")
+            return None
+            
+        # 2. Find Client ID & Secret
+        client_id = None
+        client_secret = None
+        
+        # List clients to find "GateClient"
+        clients_resp = cognito.list_user_pool_clients(UserPoolId=pool_id, MaxResults=50)
+        for client in clients_resp.get('UserPoolClients', []):
+            if client['ClientName'] == client_name:
+                client_id = client['ClientId']
+                # Need describe to get secret
+                desc = cognito.describe_user_pool_client(UserPoolId=pool_id, ClientId=client_id)
+                client_secret = desc['UserPoolClient'].get('ClientSecret')
+                break
+        
+        if not client_id or not client_secret:
+             logger.error(f"Client '{client_name}' not found in pool '{pool_name}'.")
+             return None
+             
+        # 3. Get Token
+        # We need the resource server identifier to construct scope. 
+        # By convention found in deploy script: resource_id="https://migration-gateway"
+        # scope = "https://migration-gateway/gateway:read"
+        # Ideally this is also config, but we can stick to convention
+        scope_string = "https://migration-gateway/gateway:read"
+        
         token_resp = utils.get_token(
-            user_pool_id=auth_config["user_pool_id"],
-            client_id=auth_config["client_id"],
-            client_secret=auth_config["client_secret"],
-            scope_string=auth_config["scope_string"],
-            # Assuming region is in env or derived, defaulting for now
-            region=os.getenv("AWS_DEFAULT_REGION", "us-east-1")
+            user_pool_id=pool_id,
+            client_id=client_id,
+            client_secret=client_secret,
+            scope_string=scope_string,
+            region=region
         )
         return token_resp.get("access_token")
+
     except Exception as e:
         logger.error(f"Failed to fetch dynamic token: {e}")
         return None

@@ -136,6 +136,9 @@ npm run dev
     *   `REGION`: Target AWS Region.
     *   `ECS_CLUSTER_NAME`: Name of the ECS Cluster.
     *   `APP_NAME`: Naming prefix for all resources.
+*   **Deployment Params**: Modify `migration_agent_gateway/deploy_gateway.py` to change:
+    *   `GATEWAY_NAME`: Name of the AgentCore Gateway.
+    *   **User Pool**: Update `pool_name="MigrationAgentPool"` to create a unique Auth Pool for different deployments.
 *   **Agent Logic**: Modify `agent_cloud/migration_agent.py` to change:
     *   `system_prompt`: The core personality and instruction set of the agent.
     *   `model`: The Bedrock model ID (e.g., switch to Claude 3.5 Sonnet).
