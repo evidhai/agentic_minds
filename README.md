@@ -12,11 +12,11 @@ The application follows a modular, scalable architecture hosted on AWS:
 graph TD
     User((User)) -->|HTTPS| Frontend[React Frontend]
     Frontend -->|API Requests| ALB[Application Load Balancer]
-    ALB -->|Forward| FargateService[ECS Fargate Service<br>(Migration Agent logic)]
+    ALB -->|Forward| FargateService["ECS Fargate Service<br>(Migration Agent logic)"]
     
     subgraph "Serverless Backend"
-        FargateService -->|Direct Invoke (SDK)| Lambda[AWS Lambda<br>(Tools & Utilities)]
-        Lambda -->|Read/Write| AWS[AWS Services<br>(Cost Explorer, EC2, etc.)]
+        FargateService -->|Direct Invoke (SDK)| Lambda["AWS Lambda<br>(Tools & Utilities)"]
+        Lambda -->|Read/Write| AWS["AWS Services<br>(Cost Explorer, EC2, etc.)"]
     end
 
     subgraph "Infrastructure"
