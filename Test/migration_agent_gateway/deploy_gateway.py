@@ -13,10 +13,10 @@ import gateway_infra_utils as utils
 
 # Configuration
 REGION = os.environ.get('AWS_DEFAULT_REGION', 'us-east-1')
-GATEWAY_NAME = "MigrationAgentGateway-Test"
-LAMBDA_FUNC_NAME = "MigrationAgentTools-Test"
-LAMBDA_ROLE_NAME = "MigrationAgentLambdaRole-Test"
-GATEWAY_ROLE_NAME = "MigrationAgentGatewayRole-Test"
+GATEWAY_NAME = "MigrationAgentGateway"
+LAMBDA_FUNC_NAME = "MigrationAgentTools"
+LAMBDA_ROLE_NAME = "MigrationAgentLambdaRole"
+GATEWAY_ROLE_NAME = "MigrationAgentGatewayRole"
 
 def main():
     print(f"🚀 Starting deployment of {GATEWAY_NAME} in {REGION}...")
@@ -48,7 +48,7 @@ def main():
     print("\n🔐 Setting up Cognito Authentication...")
     # EDIT 'pool_name' here to create a separate User Pool for a new app instance (e.g., "MigrationAgentPool-Dev")
     auth_config = utils.setup_cognito_full(
-        pool_name="MigrationAgentPool-Test", 
+        pool_name="MigrationAgentPool", 
         client_name="GateClient",
         resource_id="https://migration-gateway",
         region=REGION

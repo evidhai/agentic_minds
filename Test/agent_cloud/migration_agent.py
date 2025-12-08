@@ -55,7 +55,7 @@ def get_dynamic_token():
     Dynamically retrieves credentials by looking up the User Pool by Name.
     Use 'APP_POOL_NAME' env var to override the target pool name.
     """
-    pool_name = os.getenv("APP_POOL_NAME", "MigrationAgentPool-Test")
+    pool_name = os.getenv("APP_POOL_NAME", "MigrationAgentPool")
     client_name = "GateClient" # Default client name created by deploy script
     region = os.getenv("AWS_DEFAULT_REGION", "us-east-1")
     

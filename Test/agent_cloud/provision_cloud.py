@@ -7,19 +7,18 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Configuration
-# Configuration
-APP_NAME = "migration-agent-cloud-test"
+APP_NAME = "migration-agent-cloud"
 REGION = "us-east-1"
 ACCOUNT_ID = boto3.client("sts").get_caller_identity()["Account"]
-BUCKET_NAME = f"migration-agent-diagrams-test-{ACCOUNT_ID}"
+BUCKET_NAME = f"migration-agent-diagrams-{ACCOUNT_ID}"
 ECR_REPO_NAME = APP_NAME
-ECS_CLUSTER_NAME = "MigrationAgentCluster-Test"
-ECS_SERVICE_NAME = "MigrationAgentService-Test"
-ECS_TASK_FAMILY = "migration-agent-task-test"
+ECS_CLUSTER_NAME = "MigrationAgentCluster"
+ECS_SERVICE_NAME = "MigrationAgentService"
+ECS_TASK_FAMILY = "migration-agent-task"
 
 # IAM Roles
-EXECUTION_ROLE_NAME = "MigrationAgentTaskExecutionRole-Test"
-TASK_ROLE_NAME = "MigrationAgentTaskRole-Test"
+EXECUTION_ROLE_NAME = "MigrationAgentTaskExecutionRole"
+TASK_ROLE_NAME = "MigrationAgentTaskRole"
 
 def create_iam_roles():
     iam = boto3.client("iam")

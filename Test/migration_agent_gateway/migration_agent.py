@@ -4,6 +4,7 @@ import asyncio
 import time
 import logging
 from dotenv import load_dotenv
+
 # Load environment variables
 load_dotenv()
 
@@ -11,7 +12,6 @@ from strands import Agent
 from strands.tools.mcp import MCPClient
 from mcp.client.streamable_http import streamablehttp_client
 from bedrock_agentcore.runtime import BedrockAgentCoreApp
-import uvicorn
 from strands.models import BedrockModel
 from bedrock_agentcore.memory import MemoryClient
 from strands.hooks import AgentInitializedEvent, HookProvider, MessageAddedEvent
@@ -21,11 +21,8 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # --- SIMPLE MEMORY STORE (Global Dict) ---
-# --- SIMPLE MEMORY STORE (Global Dict) ---
-# Replacing complex MemoryClient for reliable POC demo
 # Replacing complex MemoryClient for reliable POC demo
 app = BedrockAgentCoreApp()
-
 GLOBAL_MEMORY_STORE = {}
 
 def add_to_memory(session_id, role, content):
@@ -51,65 +48,20 @@ GATEWAY_URL = os.getenv("GATEWAY_URL")
 import gateway_infra_utils as utils
 
 def get_dynamic_token():
-    """
-    Dynamically retrieves credentials by looking up the User Pool by Name.
-    Use 'APP_POOL_NAME' env var to override the target pool name.
-    """
-    pool_name = os.getenv("APP_POOL_NAME", "MigrationAgentPool-Test")
-    client_name = "GateClient" # Default client name created by deploy script
-    region = os.getenv("AWS_DEFAULT_REGION", "us-east-1")
-    
+    """Reads credentials from gateway_auth.json and fetches fresh token"""
     try:
-        cognito = boto3.client("cognito-idp", region_name=region)
-        
-        # 1. Find User Pool ID
-        pool_id = None
-        paginator = cognito.get_paginator('list_user_pools')
-        for page in paginator.paginate(MaxResults=50):
-            for pool in page['UserPools']:
-                if pool['Name'] == pool_name:
-                    pool_id = pool['Id']
-                    break
-            if pool_id: break
+        with open("gateway_auth.json", "r") as f:
+            auth_config = json.load(f)
             
-        if not pool_id:
-            logger.error(f"User Pool '{pool_name}' not found.")
-            return None
-            
-        # 2. Find Client ID & Secret
-        client_id = None
-        client_secret = None
-        
-        # List clients to find "GateClient"
-        clients_resp = cognito.list_user_pool_clients(UserPoolId=pool_id, MaxResults=50)
-        for client in clients_resp.get('UserPoolClients', []):
-            if client['ClientName'] == client_name:
-                client_id = client['ClientId']
-                # Need describe to get secret
-                desc = cognito.describe_user_pool_client(UserPoolId=pool_id, ClientId=client_id)
-                client_secret = desc['UserPoolClient'].get('ClientSecret')
-                break
-        
-        if not client_id or not client_secret:
-             logger.error(f"Client '{client_name}' not found in pool '{pool_name}'.")
-             return None
-             
-        # 3. Get Token
-        # We need the resource server identifier to construct scope. 
-        # By convention found in deploy script: resource_id="https://migration-gateway"
-        # scope = "https://migration-gateway/gateway:read"
-        # Ideally this is also config, but we can stick to convention
-        scope_string = "https://migration-gateway/gateway:read"
-        
         token_resp = utils.get_token(
-            user_pool_id=pool_id,
-            client_id=client_id,
-            client_secret=client_secret,
-            scope_string=scope_string,
-            region=region
+            user_pool_id=auth_config["user_pool_id"],
+            client_id=auth_config["client_id"],
+            client_secret=auth_config["client_secret"],
+            scope_string=auth_config["scope_string"],
+            # Assuming region is in env or derived, defaulting for now
+            region=os.getenv("AWS_DEFAULT_REGION", "us-east-1")
         )
         return token_resp.get("access_token")
-
     except Exception as e:
         logger.error(f"Failed to fetch dynamic token: {e}")
         return None
@@ -369,54 +321,17 @@ def arch_diag_assistant(payload):
         text_parts = []
         saved_images = []
         
-        # Cloud Storage Configuration
-        bucket_name = os.getenv("DIAGRAM_BUCKET_NAME")
-        s3_client = boto3.client('s3') if bucket_name else None
+        # Track existing files in /tmp before generation (Actually we should have done this before call, but for now we scan all)
+        # Better approach: Just scan /tmp/generated-diagrams and move anything new?
+        # Or blindly copy all pngs from there?
         
-        # Local fallback (for /tmp scanning)
+        # Let's try to grab them from /tmp if Base64 wasn't returned
         tmp_diagram_dir = Path("/tmp/generated-diagrams")
-        if not tmp_diagram_dir.exists(): 
-             tmp_diagram_dir.mkdir(parents=True, exist_ok=True)
-
+        import shutil
+        
+        # Ensure frontend dir exists
         frontend_dir = Path("../migration_agent_frontend/public/diagrams")
-        # Only try to create frontend dir if running locally and folder structure exists
-        is_local_dev = frontend_dir.parent.exists()
-        if is_local_dev:
-            frontend_dir.mkdir(parents=True, exist_ok=True)
-
-        def save_generated_image(image_bytes, ext="png"):
-            fname = f"diagram_{uuid4().hex[:8]}_{int(time.time())}.{ext}"
-            
-            # 1. Upload to S3 (Priority for Cloud)
-            if bucket_name:
-                try:
-                    s3_key = f"diagrams/{fname}"
-                    s3_client.put_object(
-                        Bucket=bucket_name,
-                        Key=s3_key,
-                        Body=image_bytes,
-                        ContentType=f"image/{ext}"
-                    )
-                    # Generate Presigned URL (valid for 1 hour)
-                    url = s3_client.generate_presigned_url(
-                        'get_object',
-                        Params={'Bucket': bucket_name, 'Key': s3_key},
-                        ExpiresIn=3600
-                    )
-                    print(f"[SUCCESS] Uploaded diagram to s3://{bucket_name}/{s3_key}")
-                    return url
-                except Exception as e:
-                    print(f"[WARNING] Failed to upload to S3: {e}")
-            
-            # 2. Local Fallback
-            if is_local_dev:
-                dest = frontend_dir / fname
-                with open(dest, "wb") as f:
-                    f.write(image_bytes)
-                print(f"[SUCCESS] Saved diagram locally to {dest}")
-                return f"/diagrams/{fname}"
-            
-            return None
+        frontend_dir.mkdir(parents=True, exist_ok=True)
 
         for part in response.message.get("content", []):
             if part.get("type") == "text":
@@ -426,32 +341,36 @@ def arch_diag_assistant(payload):
             b64_data = part.get("data") or part.get("base64_data")
             if b64_data:
                 try:
+                    import base64
                     image_bytes = base64.b64decode(b64_data)
                     ext = (part.get("format") or "png").replace(".", "")
-                    url = save_generated_image(image_bytes, ext)
-                    if url:
-                        saved_images.append(url)
+                    fname = f"diagram_{uuid4().hex[:8]}_{int(time.time())}.{ext}"
+                    dest = frontend_dir / fname
+                    with open(dest, "wb") as f:
+                        f.write(image_bytes)
+                    saved_images.append(f"/diagrams/{fname}")
+                    print(f"✅ Saved diagram from Base64 to {dest}")
                 except Exception as e:
-                    print(f"Failed to process image data: {e}")
+                    print(f"Failed to save diagram: {e}")
         
-        # CHECK TMP DIR (Hybrid Fallback)
+        # CHECK TMP DIR
         if tmp_diagram_dir.exists():
             for tmp_file in tmp_diagram_dir.glob("*.png"):
                 try:
-                    with open(tmp_file, "rb") as f:
-                        image_bytes = f.read()
-                    
-                    url = save_generated_image(image_bytes, "png")
-                    if url:
-                        saved_images.append(url)
-                    
-                    # Cleanup tmp
+                    # Move to frontend dir
+                    fname = f"diagram_{uuid4().hex[:8]}_{int(time.time())}.png"
+                    dest = frontend_dir / fname
+                    shutil.copy2(tmp_file, dest)
+                    saved_images.append(f"/diagrams/{fname}")
+                    print(f"✅ Moved diagram from /tmp to {dest}")
+                    # Optional: Delete from tmp to avoid dupes next time?
                     os.remove(tmp_file) 
                 except Exception as e:
-                    print(f"Failed to process tmp file {tmp_file}: {e}")
+                    print(f"Failed to copy from tmp: {e}")
 
         result = "\n\n".join(text_parts).strip()
         if saved_images:
+            # Return Markdown Image Syntax so Chat renders it!
             result += "\n\n### Generated Architecture Diagram:\n"
             for img_path in saved_images:
                result += f"\n![Architecture Diagram]({img_path})\n"
@@ -526,13 +445,14 @@ async def migration_assistant(payload):
     else:
         user_input = payload.get("input") or payload.get("prompt")
         user_id = payload.get("user_id", "unknown")
-        context = payload.get("context", {}) 
+        context = payload.get("context", {})
+    
     import traceback
     
     # Session Management
     session_id = context.get("session_id") or f"session_{user_id}_{int(time.time())}"
     # session_memory_provider removed
-
+    
     print(f"User ID: {user_id}")
     print(f"Session ID: {session_id}")
     
@@ -617,7 +537,7 @@ Current User Input:
 
 
 if __name__ == "__main__":
-    print("\n🚀 Migration Agent Server is RUNNING on internal port 8081")
-    # Run on 8081 so Nginx can proxy to it from 8000
-    uvicorn.run(app, host="0.0.0.0", port=8081)
+    print("\n🚀 Migration Agent Server is RUNNING on http://localhost:8000")
+    print("   (It is waiting for requests from the Frontend)")
+    app.run(port=8000)
 
