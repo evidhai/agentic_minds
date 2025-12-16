@@ -17,25 +17,16 @@ from bedrock_agentcore.memory import MemoryClient
 from strands.hooks import AgentInitializedEvent, HookProvider, MessageAddedEvent
 
 # Configure logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+from bedrock_agentcore.memory import MemoryClient
 
-# --- SIMPLE MEMORY STORE (Global Dict) ---
-# --- SIMPLE MEMORY STORE (Global Dict) ---
-# Replacing complex MemoryClient for reliable POC demo
-# Replacing complex MemoryClient for reliable POC demo
+# Initialize the Bedrock App (FastAPI wrapper)
 app = BedrockAgentCoreApp()
 
-GLOBAL_MEMORY_STORE = {}
+# --- AGENTCORE MEMORY STORE ---
+# MemoryClient usually picks up config from env or uses default Memory Table.
+memory_client = MemoryClient()
 
 def add_to_memory(session_id, role, content):
-    if session_id not in GLOBAL_MEMORY_STORE:
-        GLOBAL_MEMORY_STORE[session_id] = []
-    
-    GLOBAL_MEMORY_STORE[session_id].append({
-        "role": role,
-        "content": content,
-        "timestamp": time.time()
     })
     print(f"💾 Saved to memory [{session_id}]: {role} - {len(content)} chars")
 
@@ -571,34 +562,49 @@ Current User Input:
         CURRENT_IMAGE_CONTEXT["payload"] = None
 
     try:
-        # Define Tools
-        all_tools = [
-            cost_assistant,
-            aws_docs_assistant, 
-            vpc_subnet_calculator,
+        # Define Local Tools
+        local_tools = [
             hld_lld_input_agent,
             arch_diag_assistant
         ]
         
-        # Instantiate Agent
-        migration_agent = Agent(
-            model="us.anthropic.claude-3-7-sonnet-20250219-v1:0",
-            system_prompt=migration_system_prompt,
-            tools=all_tools
-            # Removed hooks=[session_memory_provider]
-        )
+        # Connect to Gateway for Remote Tools
+        print("🔗 Connecting to AgentCore Gateway...")
+        transport = create_gateway_transport()
+        
+        # Using MCP Client to fetch remote tools
+        async with MCPClient(transport) as client:
+            print("📦 Fetching tools from Gateway...")
+            remote_tools = await client.list_tools()
+            print(f"✅ Found {len(remote_tools)} remote tools: {[t.name for t in remote_tools]}")
+            
+            # Combine Tools
+            all_tools = local_tools + remote_tools
+            
+            # Instantiate Agent
+            migration_agent = Agent(
+                model="us.anthropic.claude-3-7-sonnet-20250219-v1:0",
+                system_prompt=migration_system_prompt,
+                tools=all_tools
+                # Removed hooks=[session_memory_provider]
+            )
 
-        # Run Agent
-        loop = asyncio.get_running_loop()
-        response = await loop.run_in_executor(None, migration_agent, user_input)
-        
-        response_text = response.message['content'][0]['text']
-        
-        # 2. Save Interaction to Memory
-        add_to_memory(session_id, "user", original_user_input)
-        add_to_memory(session_id, "assistant", response_text)
-        
-        return response_text
+            # Run Agent
+            # Since we are already in an async event loop (uvicorn), we can await directly 
+            # BUT Agent relies on synchronous calls internally or loop quirks?
+            # Strands Agent is synchronous call usually 'agent(input)'.
+            # However, MCP tools are async. Strands handles async tools if run in async context?
+            # Let's try standard execution.
+            
+            response = await migration_agent.run_async(user_input)
+            
+            response_text = response.message['content'][0]['text']
+            
+            # 2. Save Interaction to Memory
+            add_to_memory(session_id, "user", original_user_input)
+            add_to_memory(session_id, "assistant", response_text)
+            
+            return response_text
 
     except Exception as e:
         logger.error("CRITICAL ERROR IN AGENT:")
