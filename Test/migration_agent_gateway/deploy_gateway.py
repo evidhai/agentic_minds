@@ -11,28 +11,39 @@ import gateway_infra_utils as utils
 # To make this script robust, I will INCLUDE the necessary authentication setup logic inline 
 # or import it if the user has the 'agentcore_samples' in pythonpath.
 
+import random
+import string
+
 # Configuration
 REGION = os.environ.get('AWS_DEFAULT_REGION', 'us-east-1')
-GATEWAY_NAME = "MigrationAgentGateway"
-LAMBDA_FUNC_NAME = "MigrationAgentTools"
-LAMBDA_ROLE_NAME = "MigrationAgentLambdaRole"
-GATEWAY_ROLE_NAME = "MigrationAgentGatewayRole"
+
+# Dynamic App Naming
+# Defaults to 'MigrationAgent-Test' if not set via env var
+APP_NAME = os.environ.get('APP_NAME', 'MigrationAgent-Test')
+
+# Add random suffix to avoid conflicts during rapid POC testing
+RAND_SUFFIX = ''.join(random.choices(string.ascii_lowercase + string.digits, k=4))
+GATEWAY_NAME = f"{APP_NAME}-Gateway-{RAND_SUFFIX}"
+LAMBDA_FUNC_NAME = f"{APP_NAME}-Tools" # Keep Lambda stable as it updates fine
+LAMBDA_ROLE_NAME = f"{APP_NAME}-LambdaRole"
+GATEWAY_ROLE_NAME = f"{APP_NAME}-GatewayRole"
+USER_POOL_NAME = f"{APP_NAME}-Pool"
 
 def main():
-    print(f"🚀 Starting deployment of {GATEWAY_NAME} in {REGION}...")
+    print(f"Starting deployment of {GATEWAY_NAME} in {REGION}...")
     
     # 1. Package Lambda Code
-    print("\n📦 Packaging Lambda Code...")
+    print("\nPackaging Lambda Code...")
     zip_filename = "gateway_tools_lambda.zip"
     with ZipFile(zip_filename, 'w') as z:
         z.write("gateway_tools_lambda.py")
     
     # 2. Create/Get Lambda IAM Role
-    print("\n🛡️ Configuring Lambda IAM Role...")
+    print("\nConfiguring Lambda IAM Role...")
     lambda_role_arn = utils.create_lambda_role(LAMBDA_ROLE_NAME)
     
     # 3. Deploy Lambda Function
-    print("\n⚡ Deploying Lambda Function...")
+    print("\nDeploying Lambda Function...")
     lambda_arn = utils.create_lambda_function(
         LAMBDA_FUNC_NAME, 
         lambda_role_arn, 
@@ -41,14 +52,14 @@ def main():
     print(f"   Function ARN: {lambda_arn}")
 
     # 4. Create Gateway IAM Role
-    print("\n🛡️ Configuring Gateway IAM Role...")
+    print("\nConfiguring Gateway IAM Role...")
     gateway_role_arn = utils.create_gateway_role(GATEWAY_ROLE_NAME, REGION)
     
     # 5. Setup Cognito Auth
-    print("\n🔐 Setting up Cognito Authentication...")
-    # EDIT 'pool_name' here to create a separate User Pool for a new app instance (e.g., "MigrationAgentPool-Dev")
+    print("\nSetting up Cognito Authentication...")
+    # Dynamic Pool Name from configuration above
     auth_config = utils.setup_cognito_full(
-        pool_name="MigrationAgentPool", 
+        pool_name=USER_POOL_NAME, 
         client_name="GateClient",
         resource_id="https://migration-gateway",
         region=REGION
@@ -63,7 +74,7 @@ def main():
     # Let's update the Logic here to call create_gateway with auth.
     
     client = boto3.client('bedrock-agentcore-control', region_name=REGION)
-    print("\n🚪 Creating AgentCore Gateway (Secured)...")
+    print("\nCreating AgentCore Gateway (Secured)...")
     
     try:
         response = client.create_gateway(
@@ -89,10 +100,27 @@ def main():
             
     except Exception as e:
         if "ConflictException" in str(e):
-             print(f"Gateway {GATEWAY_NAME} likely exists. (Check if Auth needs update).")
-             # Retrieve ID if possible or fail
-             pass 
-        raise e
+             print(f"Gateway {GATEWAY_NAME} likely exists. Attempting to retrieve ID...")
+             # List gateways and find by name
+             paginator = client.get_paginator('list_gateways')
+             found = False
+             for page in paginator.paginate():
+                 print(f"DEBUG PAGE: {page}")
+                 # Try common keys
+                 summaries = page.get('gatewaySummaries') or page.get('gateways') or []
+                 for gw in summaries:
+                     if gw['name'] == GATEWAY_NAME:
+                         gateway_id = gw['gatewayId']
+                         print(f"   Found Existing Gateway ID: {gateway_id}")
+                         found = True
+                         break
+                 if found: break
+             
+             if not found:
+                 print("Error: Gateway exists but could not find ID in list.")
+                 raise e
+        else:
+            raise e
 
 
     
@@ -136,11 +164,29 @@ def main():
         }
     ]
     
-    print("\n📝 Generated Tool Schema for Gateway Config:")
+    print("\nGenerated Tool Schema for Gateway Config:")
     print(json.dumps(tools_schema, indent=2))
     
+    # WAIT FOR GATEWAY TO BE ACTIVE
+    print("\nWaiting for Gateway to be READY...")
+    while True:
+        try:
+            gw_desc = client.get_gateway(gatewayIdentifier=gateway_id)
+            # Check response structure - often 'gateway' key wraps the object or it is at root if using specific client
+            # Based on list_gateways experience, let's print debug if needed, but usually get_gateway returns dict
+            status = gw_desc.get('gateway', {}).get('status') or gw_desc.get('status')
+            print(f"   Status: {status}")
+            if status == 'READY' or status == 'ACTIVE':
+                break
+            if status == 'FAILED':
+                raise Exception("Gateway creation FAILED.")
+        except Exception as e:
+            print(f"   Polling error: {e}")
+            
+        time.sleep(5)
+    
     # Create the Gateway Target Mapping
-    print("\n🔗 Mapping Gateway to Lambda Functions...")
+    print("\nMapping Gateway to Lambda Functions...")
     
     # We pass the schema we generated above
     target_id = utils.create_gateway_target(
@@ -150,10 +196,15 @@ def main():
         region=REGION
     )
 
-    print("\n🎉 Deployment Complete!")
+    print("\nDeployment Complete!")
     print(f"   - Gateway ID:   {gateway_id}")
     print(f"   - Lambda ARN:   {lambda_arn}")
     print(f"   - Target ID:    {target_id}")
+
+    # Write Gateway ID to file for other scripts to use
+    with open("gateway_id.txt", "w") as f:
+        f.write(gateway_id)
+    print(f"   Saved ID to gateway_id.txt")
     print("\nYou can now run 'python migration_agent.py' to start the agent.")
 
 

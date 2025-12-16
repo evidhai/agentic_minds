@@ -7,19 +7,18 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Configuration
-# Configuration
-APP_NAME = "migration-agent-cloud-test"
+APP_NAME = "migration-agent-cloud"
 REGION = "us-east-1"
 ACCOUNT_ID = boto3.client("sts").get_caller_identity()["Account"]
-BUCKET_NAME = f"migration-agent-diagrams-test-{ACCOUNT_ID}"
+BUCKET_NAME = f"migration-agent-diagrams-{ACCOUNT_ID}"
 ECR_REPO_NAME = APP_NAME
-ECS_CLUSTER_NAME = "MigrationAgentCluster-Test"
-ECS_SERVICE_NAME = "MigrationAgentService-Test"
-ECS_TASK_FAMILY = "migration-agent-task-test"
+ECS_CLUSTER_NAME = "MigrationAgentCluster"
+ECS_SERVICE_NAME = "MigrationAgentService"
+ECS_TASK_FAMILY = "migration-agent-task"
 
 # IAM Roles
-EXECUTION_ROLE_NAME = "MigrationAgentTaskExecutionRole-Test"
-TASK_ROLE_NAME = "MigrationAgentTaskRole-Test"
+EXECUTION_ROLE_NAME = "MigrationAgentTaskExecutionRole"
+TASK_ROLE_NAME = "MigrationAgentTaskRole"
 
 def create_iam_roles():
     iam = boto3.client("iam")
@@ -166,6 +165,19 @@ def create_load_balancer(vpc_id, subnet_ids, security_group_id):
         alb_arn = albs["LoadBalancers"][0]["LoadBalancerArn"]
         alb_dns = albs["LoadBalancers"][0]["DNSName"]
         alb_zone_id = albs["LoadBalancers"][0]["CanonicalHostedZoneId"]
+
+    # Configure ALB Idle Timeout (4000s)
+    # This ensures the load balancer doesn't close the connection before the agent responds (often > 60s)
+    try:
+        elbv2.modify_load_balancer_attributes(
+            LoadBalancerArn=alb_arn,
+            Attributes=[
+                {'Key': 'idle_timeout.timeout_seconds', 'Value': '4000'}
+            ]
+        )
+        print("[SUCCESS] Configured ALB Idle Timeout to 4000s")
+    except Exception as e:
+        print(f"[WARNING] Failed to set ALB Timeout: {e}")
 
     # 3. Listeners - Re-Apply Logic (Idempotent)
     # Fetch existing listeners to delete/update
@@ -351,7 +363,8 @@ def create_ecs_resources(exec_role_arn, task_role_arn, image_uri, target_group_a
                     "assignPublicIp": "ENABLED"
                 }
             },
-            loadBalancers=lb_config
+            loadBalancers=lb_config,
+            enableExecuteCommand=True
         )
         print(f"[SUCCESS] Created Service: {ECS_SERVICE_NAME}")
     except ecs.exceptions.InvalidParameterException as e:
@@ -360,7 +373,8 @@ def create_ecs_resources(exec_role_arn, task_role_arn, image_uri, target_group_a
              cluster=ECS_CLUSTER_NAME,
              service=ECS_SERVICE_NAME,
              taskDefinition=ECS_TASK_FAMILY,
-             forceNewDeployment=True
+             forceNewDeployment=True,
+             enableExecuteCommand=True
         )
 
 if __name__ == "__main__":

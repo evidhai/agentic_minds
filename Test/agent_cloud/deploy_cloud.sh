@@ -33,7 +33,7 @@ aws ecr create-repository --repository-name ${APP_NAME} --region ${AWS_REGION}
 
 # 3. Build Docker Image (Context is Root)
 echo "[INFO] Building Docker Image (Targeting linux/amd64 for Fargate)..."
-docker build --platform linux/amd64 -f migration_agent_cloud/Dockerfile -t ${APP_NAME}:latest .
+docker build --platform linux/amd64 -f agent_cloud/Dockerfile -t ${APP_NAME}:latest .
 docker tag ${APP_NAME}:latest ${ECR_REPO_URI}:latest
 
 # 4. Push to ECR

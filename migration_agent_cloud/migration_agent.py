@@ -51,65 +51,20 @@ GATEWAY_URL = os.getenv("GATEWAY_URL")
 import gateway_infra_utils as utils
 
 def get_dynamic_token():
-    """
-    Dynamically retrieves credentials by looking up the User Pool by Name.
-    Use 'APP_POOL_NAME' env var to override the target pool name.
-    """
-    pool_name = os.getenv("APP_POOL_NAME", "MigrationAgentPool-Test")
-    client_name = "GateClient" # Default client name created by deploy script
-    region = os.getenv("AWS_DEFAULT_REGION", "us-east-1")
-    
+    """Reads credentials from gateway_auth.json and fetches fresh token"""
     try:
-        cognito = boto3.client("cognito-idp", region_name=region)
-        
-        # 1. Find User Pool ID
-        pool_id = None
-        paginator = cognito.get_paginator('list_user_pools')
-        for page in paginator.paginate(MaxResults=50):
-            for pool in page['UserPools']:
-                if pool['Name'] == pool_name:
-                    pool_id = pool['Id']
-                    break
-            if pool_id: break
+        with open("gateway_auth.json", "r") as f:
+            auth_config = json.load(f)
             
-        if not pool_id:
-            logger.error(f"User Pool '{pool_name}' not found.")
-            return None
-            
-        # 2. Find Client ID & Secret
-        client_id = None
-        client_secret = None
-        
-        # List clients to find "GateClient"
-        clients_resp = cognito.list_user_pool_clients(UserPoolId=pool_id, MaxResults=50)
-        for client in clients_resp.get('UserPoolClients', []):
-            if client['ClientName'] == client_name:
-                client_id = client['ClientId']
-                # Need describe to get secret
-                desc = cognito.describe_user_pool_client(UserPoolId=pool_id, ClientId=client_id)
-                client_secret = desc['UserPoolClient'].get('ClientSecret')
-                break
-        
-        if not client_id or not client_secret:
-             logger.error(f"Client '{client_name}' not found in pool '{pool_name}'.")
-             return None
-             
-        # 3. Get Token
-        # We need the resource server identifier to construct scope. 
-        # By convention found in deploy script: resource_id="https://migration-gateway"
-        # scope = "https://migration-gateway/gateway:read"
-        # Ideally this is also config, but we can stick to convention
-        scope_string = "https://migration-gateway/gateway:read"
-        
         token_resp = utils.get_token(
-            user_pool_id=pool_id,
-            client_id=client_id,
-            client_secret=client_secret,
-            scope_string=scope_string,
-            region=region
+            user_pool_id=auth_config["user_pool_id"],
+            client_id=auth_config["client_:qid"],
+            client_secret=auth_config["client_secret"],
+            scope_string=auth_config["scope_string"],
+            # Assuming region is in env or derived, defaulting for now
+            region=os.getenv("AWS_DEFAULT_REGION", "us-east-1")
         )
         return token_resp.get("access_token")
-
     except Exception as e:
         logger.error(f"Failed to fetch dynamic token: {e}")
         return None
@@ -378,43 +333,48 @@ def arch_diag_assistant(payload):
         if not tmp_diagram_dir.exists(): 
              tmp_diagram_dir.mkdir(parents=True, exist_ok=True)
 
-        frontend_dir = Path("../migration_agent_frontend/public/diagrams")
-        # Only try to create frontend dir if running locally and folder structure exists
-        is_local_dev = frontend_dir.parent.exists()
-        if is_local_dev:
-            frontend_dir.mkdir(parents=True, exist_ok=True)
+        # Determine Output Directory (Robust Verification)
+        # We check multiple potential locations. Order matters (Prod -> Local)
+        potential_paths = [
+            Path("/app/static/diagrams"),                 # Docker Prod (Standard)
+            Path("/app/diagrams"),                        # Docker Prod (Alt)
+            Path("../migration_agent_frontend/public/diagrams"), # Local (Run from subdir)
+            Path("migration_agent_frontend/public/diagrams"),    # Local (Run from root)
+        ]
+        
+        output_dir = None
+        for p in potential_paths:
+            # Check if the *parent* exists (meaning the structure is valid)
+            # OR if the directory itself already exists
+            if p.parent.exists() or p.exists():
+                output_dir = p
+                break
+                
+        if output_dir:
+            output_dir.mkdir(parents=True, exist_ok=True)
 
         def save_generated_image(image_bytes, ext="png"):
             fname = f"diagram_{uuid4().hex[:8]}_{int(time.time())}.{ext}"
             
-            # 1. Upload to S3 (Priority for Cloud)
-            if bucket_name:
+            # Local/Docker Storage (ECS)
+            if output_dir:
+                dest = output_dir / fname
                 try:
-                    s3_key = f"diagrams/{fname}"
-                    s3_client.put_object(
-                        Bucket=bucket_name,
-                        Key=s3_key,
-                        Body=image_bytes,
-                        ContentType=f"image/{ext}"
-                    )
-                    # Generate Presigned URL (valid for 1 hour)
-                    url = s3_client.generate_presigned_url(
-                        'get_object',
-                        Params={'Bucket': bucket_name, 'Key': s3_key},
-                        ExpiresIn=3600
-                    )
-                    print(f"[SUCCESS] Uploaded diagram to s3://{bucket_name}/{s3_key}")
-                    return url
+                    # Ensure directory permissions
+                    os.chmod(output_dir, 0o755)
+                    
+                    with open(dest, "wb") as f:
+                        f.write(image_bytes)
+                    
+                    # Ensure file permissions (World Readable for Nginx)
+                    os.chmod(dest, 0o644)
+                    
+                    print(f"[SUCCESS] Saved diagram to {dest} (Size: {len(image_bytes)} bytes)")
+                    return f"/diagrams/{fname}"
                 except Exception as e:
-                    print(f"[WARNING] Failed to upload to S3: {e}")
-            
-            # 2. Local Fallback
-            if is_local_dev:
-                dest = frontend_dir / fname
-                with open(dest, "wb") as f:
-                    f.write(image_bytes)
-                print(f"[SUCCESS] Saved diagram locally to {dest}")
-                return f"/diagrams/{fname}"
+                    print(f"[ERROR] Failed to save/chmod file {dest}: {e}")
+                    return None
+
             
             return None
 
@@ -490,28 +450,31 @@ def vpc_subnet_calculator(cidr_block: str):
 # --- Agent Definition Wrapper ---
 
 migration_system_prompt = """You are an expert AWS Migration Specialist and Cloud Architect.
-Your goal is to guide users through the complex process of migrating on-premises workloads to AWS with confidence and clarity.
+Your goal is to guide users through the complex process of migrating on-premises workloads to AWS.
+
+### Tool Usage Strategy (STRICT)
+*   **Execute ONLY what is asked**: Do NOT run any tool unless it is directly required to answer the user's specific request.
+*   **Negative Constraints**:
+    *   Do NOT run `cost_assistant` unless the user explicitly asks for "price", "cost", or "estimate".
+    *   Do NOT run `aws_docs_assistant` unless the user explicitly asks for "documentation", "guide", or "reference".
+    *   Do NOT run `vpc_subnet_calculator` unless the user explicitly mentions "CIDR", "subnet", "IP", or "network planning".
+*   **Specific Requests**: If a user asks for a diagram, use ONLY `arch_diag_assistant`. Do not add costing or docs.
+*   **Analysis**: Use `hld_lld_input_agent` ONLY if an image is provided.
 
 ### Core Responsibilities
-1.  **Analyze & Assess**: Deeply understand the user's existing infrastructure. If an image is provided, use the `hld_lld_input_agent` to extract details.
-2.  **Consult & Clarify**: Do NOT just give a generic answer. Proactively ask for technical preferences (e.g., Serverless vs Containers, Managed vs Self-hosted) to tailor the solution.
-3.  **Recommend & Plan**: Suggest appropriate migration strategies (Re-host, Re-platform, Re-factor) and AWS services.
-4.  **Cost & Best Practices**: Always consider TCO and the AWS Well-Architected Framework. Use `cost_assistant` for estimates.
-5.  **IP Conservation**: The user is operating in a **Private IPv4 Resource Crunch**. ALWAYS recommend the **minimal viable** subnet size (e.g., /28 for small workloads). Use `vpc_subnet_calculator`.
-6.  **Official Documentation**: Use `aws_docs_assistant` to verify latest limits and features.
+1.  **Analyze & Assess**: Understand the user's infrastructure.
+2.  **Consult & Clarify**: Ask for technical preferences (Serverless vs Containers, etc.) if unclear.
+3.  **Recommend & Plan**: Suggest appropriate migration strategies (Re-host, Re-platform, Re-factor).
+4.  **IP Conservation**: In **Private IPv4 Resource Crunch**, recommend **minimal viable** subnet sizes (e.g., /28).
 
 ### Operational Rules
-*   **Step-by-Step Approach**: Break complex migrations into logical phases.
-*   **Diagram Generation**: Use the `arch_diag_assistant` to create professional diagrams.
-*   **CRITICAL - Image Links**: If a tool (like `arch_diag_assistant`) returns a Markdown Image Link (e.g., `![Architecture Diagram](/diagrams/...)`), you **MUST** include this link **VERBATIM** in your final response. **Do NOT remove it**. It is required for the user to see the diagram.
-*   **Tone**: Professional, encouraging, and technically precise.
+*   **Conciseness**: Be extremely concise. Use bullet points. Avoid flowery language or long preambles. Target fewer output tokens.
+*   **Diagrams**: When generating diagrams, use `arch_diag_assistant`. **CRITICAL**: You **MUST** include the returned Markdown Image Link (e.g., `![Architecture Diagram](/diagrams/...)`) VERBATIM.
+*   **Tone**: Professional, direct, and technically precise.
 
 ### Hybrid Toolset
-You have access to a suite of tools, some running on a remote Gateway and some locally:
-1.  **Gateway Tools**: `cost_assistant`, `aws_docs_assistant`, `vpc_subnet_calculator` (Remote Lambda).
-2.  **Local Tools**: `hld_lld_input_agent` (Image Analysis), `arch_diag_assistant` (Diagram Generation).
-
-Use them seamlessly to assist the user.
+1.  **Gateway**: `cost_assistant`, `aws_docs_assistant`, `vpc_subnet_calculator`.
+2.  **Local**: `hld_lld_input_agent`, `arch_diag_assistant`.
 """
 
 @app.entrypoint
@@ -617,7 +580,6 @@ Current User Input:
 
 
 if __name__ == "__main__":
-    print("\n🚀 Migration Agent Server is RUNNING on internal port 8081")
-    # Run on 8081 so Nginx can proxy to it from 8000
+    print("\n🚀 Migration Agent Server is RUNNING on http://localhost:8081")
+    print("   (It is waiting for requests from the Frontend/Nginx)")
     uvicorn.run(app, host="0.0.0.0", port=8081)
-

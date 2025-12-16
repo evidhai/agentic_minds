@@ -7,3 +7,9 @@ bedrock-agentcore-starter-toolkit
 python-dotenv
 requests
 requests-aws4auth
+
+fastapi
+uvicorn
+python-multipart
+aiofiles
+mangum

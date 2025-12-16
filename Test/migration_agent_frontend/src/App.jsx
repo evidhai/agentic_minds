@@ -7,7 +7,8 @@ import { Authenticator } from '@aws-amplify/ui-react';
 import '@aws-amplify/ui-react/styles.css';
 
 // Mock Endpoint - In production, this comes from ENV
-const API_ENDPOINT = "/invocations";
+// Mock Endpoint - In production, this comes from ENV
+const API_ENDPOINT = import.meta.env.VITE_API_URL || "https://rdfez2226zrzbjisuw5unsk22i0xuxqh.lambda-url.us-east-1.on.aws/";
 
 function App({ signOut, user }) {
   const [messages, setMessages] = useState(() => {

@@ -1,0 +1,32 @@
+FROM public.ecr.aws/lambda/python:3.12
+
+# Copy requirements
+COPY requirements.txt ${LAMBDA_TASK_ROOT}
+
+# Install dependencies
+RUN pip install -r requirements.txt --target "${LAMBDA_TASK_ROOT}"
+# Need mangum for ASGI support
+RUN pip install mangum --target "${LAMBDA_TASK_ROOT}"
+
+# Copy function code
+COPY migration_agent.py ${LAMBDA_TASK_ROOT}
+COPY gateway_infra_utils.py ${LAMBDA_TASK_ROOT}
+# Copy libs if any (assuming utils are used) -- from logs user might have utils
+# But migration_agent imports 'gateway_infra_utils'. Where is it?
+# It's in ../migration_agent_gateway/gateway_infra_utils.py.
+# But Docker build context is usually '.', and deploy script runs in 'Test/agent_cloud'.
+# If 'migration_agent.py' imports 'gateway_infra_utils', it won't find it if it's not copied.
+# Wait. 'migration_agent.py' imports 'gateway_infra_utils' (Line 42).
+# But that file is in the sibling directory 'migration_agent_gateway'.
+# The standard Dockerfile probably failed to copy it too unless context was parent.
+# But 'deploy_brain_lambda.py' runs in 'agent_cloud' dir and build context is '.' (agent_cloud).
+# So 'gateway_infra_utils.py' is NOT in context!
+# This explains `ModuleNotFoundError` which leads to 502.
+
+# I need to handle this dependency.
+# Option 1: Copy gateway_infra_utils.py to agent_cloud/ during build script.
+# Option 2: Run docker build from parent dir.
+
+# I will modify 'deploy_brain_lambda.py' to copy the dependency FIRST.
+
+CMD [ "migration_agent.handler" ]

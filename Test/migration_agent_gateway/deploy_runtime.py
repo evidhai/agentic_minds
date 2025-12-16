@@ -1,5 +1,5 @@
 import os
-from bedrock_agentcore.runtime import Runtime
+from bedrock_agentcore_starter_toolkit import Runtime
 from dotenv import load_dotenv, find_dotenv
 
 # Load Env
@@ -32,8 +32,14 @@ def main():
         )
         
         print("\n✅ Runtime Configuration Complete!")
-        print(f"   - Image: {config_result.image_uri}")
-        print(f"   - Role:  {config_result.execution_role}")
+        print(f"DEBUG: Config Result Type: {type(config_result)}")
+        print(f"DEBUG: Config Result Dir: {dir(config_result)}")
+        if hasattr(config_result, '__dict__'):
+            print(f"DEBUG: Config Result Dict: {config_result.__dict__}")
+            
+        # Temporarily comment out access to image_uri until we know the property
+        # print(f"   - Image: {config_result.image_uri}")
+        # print(f"   - Role:  {config_result.execution_role}")
         
         print("\n⚡ Starting Deployment (this may take a few minutes)...")
         # In a real scenario, you would trigger the deployment here.

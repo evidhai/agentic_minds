@@ -1,160 +1,213 @@
-# AWS Migration Assistant
+![AWS Migration Assistant](banner.png)
 
-The **AWS Migration Assistant** is a comprehensive solution designed to assist users in planning, simulating, and executing migrations to AWS. It leverages a modern 3-tier architecture combining a reactive frontend, a containerized agent "brain," and serverless tools for AWS interaction.
+# ☁️ AWS Migration Assistant (AgentCore Gateway)
+
+An intelligent, multi-modal AI agent designed to assist organizations in migrating on-premises workloads to AWS. Built with **Amazon Bedrock**, **Anthropic Claude 3.5 Sonnet**, and **AgentCore Gateway**.
+
+## 🚀 Key Features
+
+*   **Hybrid Agent Architecture**: Combines remote AWS Lambda tools (Gateway) with local tools (Vision/Diagrams).
+*   **Multi-Modal Analysis**: Upload High-Level Design (HLD) or Low-Level Design (LLD) images for instant architectural auditing using **Amazon Nova Pro**.
+*   **Dynamic Diagram Generation**: Generates professional AWS architecture diagrams on-the-fly using MCP (Model Context Protocol).
+*   **Cost Estimation**: Real-time cost estimates for AWS services via authorized Lambda tools.
+*   **IP Planning**: Specialized VPC Subnet Calculator for Private IPv4 conservation.
+*   **Secure Authentication**: Full Cognito integration with persistent chat sessions.
+*   **Premium UI**: Modern, responsive React frontend with glassmorphism design.
 
 ---
 
-## 🏗️ Architecture Reference
+## 🏗️ System Architecture
 
-The application follows a modular, scalable architecture hosted on AWS:
+The solution uses a **Hybrid Agentic Architecture**, bridging local interactive tools with scalable cloud serverless functions.
+
+### 📐 User Flow
+
+![Architecture Diagram](https://mermaid.ink/img/Z3JhcGggTFIKICAgIFVzZXIoW1VzZXJdKSAtLT58TG9naW58IEF1dGhbQ29nbml0byBBdXRoXQogICAgVXNlciAtLT58Q2hhdC9VcGxvYWR8IEZFW1JlYWN0IEZyb250ZW5kXQogICAgRkUgLS0-fEpTT04gUGF5bG9hZHwgQkVbQmFja2VuZCBBZ2VudCBTZXJ2aWNlXQogICAgCiAgICBzdWJncmFwaCAiQmFja2VuZCBBZ2VudCAoUHl0aG9uL1N0cmFuZHMpIgogICAgICAgIEJFIC0tPnxSb3V0ZXwgUm91dGVye1Rvb2wgUm91dGVyfQogICAgICAgIFJvdXRlciAtLT58SW1hZ2V8IFZpc2lvbltOb3ZhIFZpc2lvbiBBZ2VudF0KICAgICAgICBSb3V0ZXIgLS0-fERpYWdyYW18IE1DUFtNQ1AgRGlhZ3JhbSBTZXJ2ZXJdCiAgICAgICAgUm91dGVyIC0tPnxRdWVyeXwgR2F0ZXdheVtBZ2VudENvcmUgR2F0ZXdheV0KICAgIGVuZAogICAgCiAgICBHYXRld2F5IC0uLT58SW52b2tlfCBMYW1iZGFbQVdTIExhbWJkYSBUb29sc10KICAgIExhbWJkYSAtLT58QVBJfCBBV1NbQVdTIFNlcnZpY2VzXQ==)
+
+<details><summary>View Mermaid Code</summary>
+
+![Architecture Diagram]
+
+<details><summary>View Mermaid Code</summary>
+
+![Architecture Diagram](https://mermaid.ink/img/Z3JhcGggTFIKICAgIFVzZXIoW1VzZXJdKSAtLT58TG9naW58IEF1dGhbQ29nbml0byBBdXRoXQogICAgVXNlciAtLT58Q2hhdC9VcGxvYWR8IEZFW1JlYWN0IEZyb250ZW5kXQogICAgRkUgLS0-fEpTT04gUGF5bG9hZHwgQkVbQmFja2VuZCBBZ2VudCBTZXJ2aWNlXQogICAgCiAgICBzdWJncmFwaCAiQmFja2VuZCBBZ2VudCAoUHl0aG9uL1N0cmFuZHMpIgogICAgICAgIEJFIC0tPnxSb3V0ZXwgUm91dGVye1Rvb2wgUm91dGVyfQogICAgICAgIFJvdXRlciAtLT58SW1hZ2V8IFZpc2lvbltOb3ZhIFZpc2lvbiBBZ2VudF0KICAgICAgICBSb3V0ZXIgLS0-fERpYWdyYW18IE1DUFtNQ1AgRGlhZ3JhbSBTZXJ2ZXJdCiAgICAgICAgUm91dGVyIC0tPnxRdWVyeXwgR2F0ZXdheVtBZ2VudENvcmUgR2F0ZXdheV0KICAgIGVuZAogICAgCiAgICBHYXRld2F5IC0uLT58SW52b2tlfCBMYW1iZGFbQVdTIExhbWJkYSBUb29sc10KICAgIExhbWJkYSAtLT58QVBJfCBBV1NbQVdTIFNlcnZpY2VzXQ==)
+
+<details><summary>View Mermaid Code</summary>
 
 ```mermaid
-graph TD
-    User((User)) -->|HTTPS| Frontend[React Frontend]
-    Frontend -->|API Requests| ALB[Application Load Balancer]
-    ALB -->|Forward| FargateService[ECS Fargate Service]
+graph LR
+    User([User]) -->|Login| Auth[Cognito Auth]
+    User -->|Chat/Upload| FE[React Frontend]
+    FE -->|JSON Payload| BE[Backend Agent Service]
     
-    subgraph "Serverless Backend"
-        FargateService -->|Direct Invoke SDK| Lambda[AWS Lambda Tools]
-        Lambda -->|Read/Write| AWS[AWS Services]
+    subgraph "Backend Agent (Python/Strands)"
+        BE -->|Route| Router{Tool Router}
+        Router -->|Image| Vision[Nova Vision Agent]
+        Router -->|Diagram| MCP[MCP Diagram Server]
+        Router -->|Query| Gateway[AgentCore Gateway]
     end
-
-    subgraph "Infrastructure"
-        FargateService -.->|Logs| CloudWatch
-        FargateService -.->|Store Diagrams| S3[S3 Bucket]
-        Lambda -.->|Auth| Cognito[Amazon Cognito]
-    end
+    
+    Gateway -.->|Invoke| Lambda[AWS Lambda Tools]
+    Lambda -->|API| AWS[AWS Services]
 ```
+</details>
+</details>
+</details>
 
-### Components
+### ☁️ Infrastructure Diagram
 
-1.  **Frontend (UI)**:
-    *   Built with **React + Vite**.
-    *   Provides an interactive chat interface and visualization for migration plans.
-    *   Connecting to the backend agent via REST/WebSocket APIs.
-    *   Auth integrated with **AWS Amplify**.
 
-2.  **Migration Agent Service (The "Brain")**:
-    *   Hosted on **AWS ECS Fargate** (Serverless Containers).
-    *   Exposed via an **Application Load Balancer (ALB)** with HTTPS support.
-    *   Handles state, orchestrates logic, and communicates with the Tools layer.
-    *   Built with Python.
 
-3.  **Tools Layer (The "Hands")**:
-    *   **Directly invoked** by the Agent Service using the AWS SDK (`boto3`).
-    *   Powered by **AWS Lambda** functions.
-    *   Provides specific capabilities:
-        *   `cost_assistant`: Analyzes pricing.
-        *   `vpc_subnet_calculator`: Designs network topologies.
-        *   `aws_docs_assistant`: Retrieves AWS documentation.
-    *   Secured via **IAM Roles** and **Amazon Cognito**.
+<details><summary>View Mermaid Code</summary>
+
+![Architecture Diagram](https://mermaid.ink/img/Zmxvd2NoYXJ0IFRCCiAgICBzdWJncmFwaCBDbGllbnQgWyLwn5K7IENsaWVudCBTaWRlIl0KICAgICAgICBVSVtSZWFjdCBVSSAoVml0ZSldCiAgICAgICAgU3RvcmVbTG9jYWwgU3RvcmFnZSBTZXNzaW9uXQogICAgZW5kCgogICAgc3ViZ3JhcGggQmFja2VuZCBbIuKame-4jyBBZ2VudCBTZXJ2aWNlIl0KICAgICAgICBBZ2VudFtNaWdyYXRpb24gQWdlbnQgKFB5dGhvbi9TdHJhbmRzKV0KICAgICAgICBNZW1vcnlbU2Vzc2lvbiBNZW1vcnkgKERpY3QvRHluYW1vREIpXQogICAgICAgIE1DUF9DbGllbnRbTUNQIENsaWVudF0KICAgIGVuZAoKICAgIHN1YmdyYXBoIEFXUyBbIuKYge-4jyBBV1MgQ2xvdWQiXQogICAgICAgIENvZ25pdG9bQ29nbml0byBVc2VyIFBvb2xdCiAgICAgICAgQmVkcm9ja1tBbWF6b24gQmVkcm9jayAoQ2xhdWRlIDMuNSBTcG5uZXQpXQogICAgICAgIExhbWJkYVtBV1MgTGFtYmRhIChHYXRld2F5IFRvb2xzKV0KICAgICAgICBUaXRhbltUaXRhbiBJbWFnZSBHZW5dCiAgICAgICAgTm92YVtOb3ZhIFBybyBWaXNpb25dCiAgICBlbmQKCiAgICBVSSAtLT58QXV0aHwgQ29nbml0bwogICAgVUkgPC0tPnxIVFRQL1JFU1R8IEFnZW50CiAgICBBZ2VudCA8LS0-fExMTSBJbmZlcmVuY2V8IEJlZHJvY2sKICAgIEFnZW50IDwtLT58RGlyZWN0IEludm9rZXwgTGFtYmRhCiAgICBBZ2VudCA8LS0-fEdlbmVyYXRlfCBNQ1BfQ2xpZW50CiAgICBNQ1BfQ2xpZW50IC0uLT4gVGl0YW4KICAgIEFnZW50IC0uLT58QW5hbHl6ZXwgTm92YQ==)
+
+<details><summary>View Mermaid Code</summary>
+
+![Architecture Diagram](https://mermaid.ink/img/Zmxvd2NoYXJ0IFRCCiAgICBzdWJncmFwaCBDbGllbnQgWyJDbGllbnQgU2lkZSJdCiAgICAgICAgVUlbUmVhY3QgVUkgKFZpdGUpXQogICAgICAgIFN0b3JlW0xvY2FsIFN0b3JhZ2UgU2Vzc2lvbl0KICAgIGVuZAoKICAgIHN1YmdyYXBoIEJhY2tlbmQgWyJBZ2VudCBTZXJ2aWNlIl0KICAgICAgICBBZ2VudFtNaWdyYXRpb24gQWdlbnQgKFB5dGhvbi9TdHJhbmRzKV0KICAgICAgICBNZW1vcnlbU2Vzc2lvbiBNZW1vcnkgKERpY3QvRHluYW1vREIpXQogICAgICAgIE1DUF9DbGllbnRbTUNQIENsaWVudF0KICAgIGVuZAoKICAgIHN1YmdyYXBoIEFXUyBbIkFXUyBDbG91ZCJdCiAgICAgICAgQ29nbml0b1tDb2duaXRvIFVzZXIgUG9vbF0KICAgICAgICBCZWRyb2NrW0FtYXpvbiBCZWRyb2NrIChDbGF1ZGUgMy41IFNvbm5ldCldCiAgICAgICAgTGFtYmRhW0FXUyBMYW1iZGEgKEdhdGV3YXkgVG9vbHMpXQogICAgICAgIFRpdGFuW1RpdGFuIEltYWdlIEdlbl0KICAgICAgICBOb3ZhW05vdmEgUHJvIFZpc2lvbl0KICAgIGVuZAoKICAgIFVJIC0tPnxBdXRofCBDb2duaXRvCiAgICBVSSA8LS0-fEhUVFAvUkVTVHwgQWdlbnQKICAgIEFnZW50IDwtLT58TExNIEluZmVyZW5jZXwgQmVkcm9jawogICAgQWdlbnQgPC0tPnxEaXJlY3QgSW52b2tlfCBMYW1iZGEKICAgIEFnZW50IDwtLT58R2VuZXJhdGV8IE1DUF9DbGllbnQKICAgIE1DUF9DbGllbnQgLS4tPiBUaXRhbgogICAgQWdlbnQgLS4tPnxBbmFseXplfCBOb3Zh)
+
+<details><summary>View Mermaid Code</summary>
+
+```mermaid
+flowchart TB
+    subgraph Client ["Client Side"]
+        UI[React UI (Vite)]
+        Store[Local Storage Session]
+    end
+
+    subgraph Backend ["Agent Service"]
+        Agent[Migration Agent (Python/Strands)]
+        Memory[Session Memory (Dict/DynamoDB)]
+        MCP_Client[MCP Client]
+    end
+
+    subgraph AWS ["AWS Cloud"]
+        Cognito[Cognito User Pool]
+        Bedrock[Amazon Bedrock (Claude 3.5 Sonnet)]
+        Lambda[AWS Lambda (Gateway Tools)]
+        Titan[Titan Image Gen]
+        Nova[Nova Pro Vision]
+    end
+
+    UI -->|Auth| Cognito
+    UI <-->|HTTP/REST| Agent
+    Agent <-->|LLM Inference| Bedrock
+    Agent <-->|Direct Invoke| Lambda
+    Agent <-->|Generate| MCP_Client
+    MCP_Client -.-> Titan
+    Agent -.->|Analyze| Nova
+```
+</details>
+</details>
+</details>
+
+1.  **Frontend (`migration_agent_frontend`)**: 
+    *   React + Vite SPA.
+    *   AWS Amplify (Cognito) for Auth.
+    *   Markdown & Image Rendering for rich chat experience.
+2.  **Backend Agent (`migration_agent_gateway`)**:
+    *   Python-based Agent using `strands` framework.
+    *   **AgentCore Gateway**: Managed interface to backend Lambda tools.
+    *   **Local Tools**: `arch_diag_assistant` (MCP) and `hld_lld_input_agent` (Nova Vision).
+    *   **Memory**: Session-persistent memory using global store (POC).
 
 ---
 
-## 🚀 Infrastructure Hosting & Provisioning
+## 🛠️ Prerequisites
 
-The infrastructure is fully automated using Python (`boto3`) scripting, ensuring reproducible deployments.
-
-### Key Resources Provisioned
-*   **Compute**: Amazon ECS Cluster + Fargate Task Definition (CPU: 1vCPU, Mem: 3GB).
-*   **Networking**: VPC, Public Subnets, Security Groups, and Application Load Balancer (Internet Facing).
-*   **Security**: IAM Roles (Least Privilege), Amazon Cognito (Identity & Access Management).
-*   **Storage**: Amazon S3 (for generated diagrams), Amazon ECR (Docker Container Registry).
-*   **DNS**: Amazon Route53 (Custom domain management).
+*   **Python 3.10+**
+*   **Node.js 18+**
+*   **AWS CLI** configured with valid credentials (`~/.aws/credentials`).
+*   **uv** (Fast Python package installer) - Required for MCP diagram tool.
+    *   Install: `curl -LsSf https://astral.sh/uv/install.sh | sh`
 
 ---
 
-## 📚 User Guide & Deployment
+## 📥 Installation
 
-Follow these steps to deploy the application from scratch.
-
-### Prerequisites
-*   **AWS CLI** installed and configured (`aws configure`).
-*   **Docker** running.
-*   **Python 3.11+** and **Node.js 18+**.
-*   **Git**.
-
-### 1. Deploy the Serverless Backend (Tools Layer)
-First, we set up the "Tools" layer so the agent has capabilities to use.
+### 1. Backend Setup
 
 ```bash
 cd migration_agent_gateway
+
+# Create Virtual Environment
+python3 -m venv .venv
+source .venv/bin/activate  # Windows: .venv\Scripts\activate
+
+# Install Dependencies
 pip install -r requirements.txt
-python deploy_gateway.py
 ```
-*   **What this does**: Deploys the **Tools Lambda**, creates IAM roles, and sets up Cognito. (Note: The script also provisions an Agent Gateway, but the Agent is configured to invoke the Lambda directly).
-*   **Output**: Note down the `Lambda ARN` from the output.
 
-### 2. Provision Cloud Infrastructure (Agent Service)
-Next, deploy the containerized agent service that uses the tools.
+### 2. Frontend Setup
 
 ```bash
-cd ../agent_cloud
-pip install -r requirements.txt
-python provision_cloud.py
-```
-*   **What this does**: Creates the S3 Bucket, ECR Repo, ECS Cluster, ALB, and hooks everything together.
-*   **Output**: Returns the `ALB DNS Name` and configures Route53 if applicable.
+cd migration_agent_frontend
 
-### 3. Build & Push Agent Container
-Deploy the actual application logic to the provisioned ECS cluster.
-
-```bash
-# Still in agent_cloud directory
-./deploy_cloud.sh
-```
-*   **What this does**: Builds the Docker image locally, logs into ECR, pushes the image, and forces a new deployment on ECS Fargate.
-
-## 🧪 Testing Locally
-
-### Run the Frontend
-Start the user interface locally to test the integration.
-
-```bash
-cd ../migration_agent_frontend
+# Install Node Modules
 npm install
+```
+
+---
+
+## ▶️ Running the Application
+
+You need two terminal windows running simultaneously.
+
+### Terminal 1: Backend Agent Service
+
+```bash
+cd migration_agent_gateway
+source ../.venv/bin/activate
+
+# Ensure AWS Credentials are valid
+# export AWS_PROFILE=default  (if needed)
+
+# Start the Agent Server
+python migration_agent.py
+```
+*   Server runs on: `http://localhost:8000`
+
+### Terminal 2: Frontend UI
+
+```bash
+cd migration_agent_frontend
+
+# Start Vite Dev Server
 npm run dev
 ```
-*   Open your browser to the local URL (e.g., `http://localhost:5173`).
-*   The frontend will communicate with the backend services deployed in previous steps.
+*   UI accessible at: `http://localhost:5173`
 
 ---
 
-## 🛠️ Developer Reference
+## 🧩 Usage Guide
 
-*   **Logs**: Check CloudWatch Logs under `/ecs/migration-agent-cloud` for application logs.
-*   **Configuration**:
-    *   Backend Env Vars: Managed in `provision_cloud.py` (e.g., `DIAGRAM_BUCKET_NAME`, `AWS_DEFAULT_REGION`).
-    *   Frontend Env: Create a `.env` file in `migration_agent_frontend` if needed for API endpoints.
+1.  **Login**: Use the credentials provided (or Sign Up if enabled).
+2.  **Chat**: Ask natural language questions.
+    *   *"How do I migrate a 3-tier Java app to AWS?"*
+    *   *"Estimate cost for 2 m5.large instances and an RDS db.m5.large."*
+3.  **Vision Analysis**: Click the **Paperclip** icon to upload an architecture diagram.
+    *   Ask: *"Analyze this diagram and suggest improvements."*
+4.  **Diagram Generation**:
+    *   Ask: *"Generate an architecture diagram for a Serverless API with caching."*
+    *   Result: A professional PNG diagram will be rendered in the chat.
+    *   **Download**: Click the "Download" button to save the diagram locally.
 
 ---
 
-## 🔧 Reusability & Extensibility
+## 🔧 Troubleshooting
 
-### 1. Configuration Checkpoints
-*   **Infrastructure Params**: Modify `agent_cloud/provision_cloud.py` to change:
-    *   `REGION`: Target AWS Region.
-    *   `ECS_CLUSTER_NAME`: Name of the ECS Cluster.
-    *   `APP_NAME`: Naming prefix for all resources.
-*   **Deployment Params**: Modify `migration_agent_gateway/deploy_gateway.py` to change:
-    *   `GATEWAY_NAME`: Name of the AgentCore Gateway.
-    *   **User Pool**: Update `pool_name="MigrationAgentPool"` to create a unique Auth Pool for different deployments.
-*   **Agent Logic**: Modify `agent_cloud/migration_agent.py` to change:
-    *   `system_prompt`: The core personality and instruction set of the agent.
-    *   `model`: The Bedrock model ID (e.g., switch to Claude 3.5 Sonnet).
+*   **"Security token included in the request is invalid"**:
+    *   Your local AWS temporary credentials have expired.
+    *   **Fix**: Refresh credentials in the backend terminal and restart `migration_agent.py`.
+*   **Diagrams not generating**:
+    *   Ensure `uv` is installed and in your PATH.
+    *   Check backend logs for `uvx` errors.
+*   **Chat History lost on restart**:
+    *   The current POC uses in-memory storage for session history. It resets if the backend process stops. (Production would use DynamoDB).
 
-### 2. Adding New Serverless Tools
-To add a new capability (e.g., a "Security Auditor" tool), follow this 3-step pattern:
+---
 
-1.  **Implement Logic (Lambda)**:
-    *   Open `migration_agent_gateway/gateway_tools_lambda.py`.
-    *   Add your python function (e.g., `def security_auditor(payload): ...`).
-    *   Update the `lambda_handler` to route to your new function name.
+## 📜 License
 
-2.  **Deploy Changes**:
-    *   Run `python deploy_gateway.py` in the `migration_agent_gateway` folder to update the Lambda code.
-
-3.  **Connect Agent**:
-    *   Open `agent_cloud/migration_agent.py`.
-    *   Create a local tool stub using the `@tool` decorator that calls your Lambda.
-    *   Add the new tool function to the `all_tools` list in `migration_assistant`.
+Project created for **IBM Innovathon 2025**.
+Using AgentCore Gateway & strands framework.

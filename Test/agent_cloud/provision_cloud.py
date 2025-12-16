@@ -291,6 +291,7 @@ def create_ecs_resources(exec_role_arn, task_role_arn, image_uri, target_group_a
                 "environment": [
                     {"name": "DIAGRAM_BUCKET_NAME", "value": BUCKET_NAME},
                     {"name": "GATEWAY_URL", "value": os.getenv("GATEWAY_URL", "")}, # Load from local env (via python-dotenv)
+                    {"name": "APP_POOL_NAME", "value": "MigrationAgentPool-Test"},
                     {"name": "AWS_DEFAULT_REGION", "value": REGION}
                 ],
                 "logConfiguration": {
